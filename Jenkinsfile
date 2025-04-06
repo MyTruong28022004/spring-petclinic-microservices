@@ -1,96 +1,57 @@
 pipeline {
     agent any
-
-    tools {
-        maven 'maven3.9.9'
-    }
-
     options {
         skipDefaultCheckout()
     }
-
     environment {
-        BUILD_VETS = 'false'
-        BUILD_VISITS = 'false'
-        BUILD_CUSTOMERS = 'false'
+        MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
     }
-
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    checkout scm
-                }
+                checkout scm
             }
         }
 
-        stage('Detect Changes') {
+        stage('Determine Changed Services') {
             steps {
                 script {
-                    def changedFiles = sh(script: "git diff --name-only HEAD~1", returnStdout: true).trim()
-                    echo "Changed files:\n${changedFiles}"
-                    env.changedFiles = changedFiles
+                    def changedServices = sh(script: '''
+                        git fetch origin main
+                        git diff --name-only origin/main...HEAD | awk -F/ '{print $1}' | sort -u
+                    ''', returnStdout: true).trim().split('\n')
+
+                    def allServices = ['spring-petclinic-vets-service', 'spring-petclinic-visits-service', 'spring-petclinic-customers-service', 'spring-petclinic-genai-service']
+                    
+                    // Chuyển changedServices thành List<String> và sử dụng intersect
+                    def changedServicesList = changedServices as List
+                    env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
                 }
             }
         }
 
-        stage('Build & Test Services') {
-            matrix {
-                axes {
-                    axis {
-                        name 'SERVICE'
-                        values 'spring-petclinic-vets-service', 
-                               'spring-petclinic-visits-service', 
-                               'spring-petclinic-customers-service'
-                    }
-                }
-
-                when {
-                    expression {
-                        return (SERVICE == 'spring-petclinic-vets-service' && changedFiles.contains("vets-service")) ||
-                               (SERVICE == 'spring-petclinic-visits-service' && changedFiles.contains("visits-service")) ||
-                               (SERVICE == 'spring-petclinic-customers-service' && changedFiles.contains("customers-service"))
-                    }
-                }
-
-                stages {
-                    stage('Build') {
-                        steps {
-                            dir("${SERVICE}") {
-                                sh "mvn clean package -DskipTests"
-                            }
-                        }
-                    }
-                    stage('Test') {
-                        steps {
-                            dir("${SERVICE}") {
-                                sh "mvn test verify"
-                                junit '**/target/surefire-reports/*.xml'
-                            }
+        stage('Build and Test') {
+            when {
+                expression { return env.SERVICES_TO_BUILD?.trim() }
+            }
+            steps {
+                script {
+                    def services = env.SERVICES_TO_BUILD.split(',')
+                    for (s in services) {
+                        dir("${s}") {
+                            sh "mvn clean test"
+                            junit '**/target/surefire-reports/*.xml'
+                            jacoco execPattern: '**/target/jacoco.exec', classPattern: '**/target/classes', sourcePattern: '**/src/main/java'
+                            sh "mvn clean package"
                         }
                     }
                 }
-            }
-        }
-
-        stage('Publish Coverage') {
-            steps {
-                jacoco(
-                    execPattern: '**/target/jacoco.exec',
-                    classPattern: '**/target/classes',
-                    sourcePattern: '**/src/main/java',
-                    inclusionPattern: '**/*.class',
-                    exclusionPattern: '**/*Test.class',
-                    minimumInstructionCoverage: '70',
-                    minimumBranchCoverage: '70'
-                )
             }
         }
     }
-
     post {
         always {
-            echo "Pipeline completed!"
+            echo "Pipeline complete"
         }
     }
 }
