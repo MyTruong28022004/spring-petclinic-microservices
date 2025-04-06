@@ -99,6 +99,7 @@ public class Pet {
     }
 
     public void setType(PetType type) {
+        //Lala
         this.type = type;
     }
 
