@@ -27,6 +27,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 public class GenAIServiceApplication {
 
 	public static void main(String[] args) {
+        //LaLa
 		SpringApplication.run(GenAIServiceApplication.class, args);
 	}
 }
