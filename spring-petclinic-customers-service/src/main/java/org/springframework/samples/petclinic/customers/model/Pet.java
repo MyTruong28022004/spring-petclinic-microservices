@@ -79,6 +79,7 @@ public class Pet {
     }
 
     public PetType getType() {
+        //LaLa
         return this.type;
     }
 
