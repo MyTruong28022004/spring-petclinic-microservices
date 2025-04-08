@@ -100,6 +100,7 @@ public class Visit {
         }
 
         public VisitBuilder date(Date date) {
+            //LaLa
             this.date = date;
             return this;
         }
