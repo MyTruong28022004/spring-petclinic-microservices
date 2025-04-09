@@ -17,15 +17,18 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    // Check if the build is triggered by a PR
+                    // Ensure we are checking out the correct PR
                     if (env.CHANGE_ID) {
                         echo "PR detected: Fetching PR from refs/pull/${env.CHANGE_ID}/head"
-                        // Checkout the PR branch
+                        // Ensure the repo is checked out before running Git commands
+                        checkout scm
+
+                        // Fetch and checkout the PR
                         sh "git fetch origin pull/${env.CHANGE_ID}/head:refs/remotes/origin/PR-${env.CHANGE_ID}"
                         sh "git checkout refs/remotes/origin/PR-${env.CHANGE_ID}"
                     } else {
                         echo "No PR detected, checking out branch ${env.BRANCH_NAME}"
-                        checkout scm
+                        checkout scm // Checkout the main branch
                     }
                 }
             }
