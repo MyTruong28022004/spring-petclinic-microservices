@@ -16,17 +16,21 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
+                    // Check if the build is triggered by a PR
                     if (env.CHANGE_ID) {
                         echo "PR detected: Fetching PR from refs/pull/${env.CHANGE_ID}/head"
+                        // Checkout the PR branch
+                        sh "git fetch origin pull/${env.CHANGE_ID}/head:refs/remotes/origin/PR-${env.CHANGE_ID}"
+                        sh "git checkout refs/remotes/origin/PR-${env.CHANGE_ID}"
                     } else {
                         echo "No PR detected, checking out branch ${env.BRANCH_NAME}"
+                        checkout scm
                     }
                 }
             }
         }
-
+        
         stage('Determine Changed Services') {
             steps {
                 script {
