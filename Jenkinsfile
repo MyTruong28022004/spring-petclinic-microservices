@@ -6,7 +6,7 @@ pipeline {
     }
 
     options {
-        skipDefaultCheckout()
+        //skipDefaultCheckout()
     }
 
     environment {
