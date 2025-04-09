@@ -53,6 +53,7 @@ public class Visit {
     }
 
     public Date getDate() {
+        //LaLa
         return this.date;
     }
 
