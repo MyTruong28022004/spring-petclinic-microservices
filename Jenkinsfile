@@ -16,17 +16,22 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: env.CHANGE_BRANCH ? "origin/${CHANGE_BRANCH}" : "origin/${BRANCH_NAME}"]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/MyTruong28022004/spring-petclinic-microservices.git',
+                        credentialsId: 'MyTruong'
+                    ]]
+                ])
                 script {
-                    if (env.CHANGE_ID) {
-                        echo "PR detected: Fetching PR from refs/pull/${env.CHANGE_ID}/head"
-                    } else {
-                        echo "No PR detected, checking out branch ${env.BRANCH_NAME}"
-                    }
+                    echo "Checked out branch: ${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
                 }
             }
         }
-
+        
         stage('Determine Changed Services') {
             steps {
                 script {
