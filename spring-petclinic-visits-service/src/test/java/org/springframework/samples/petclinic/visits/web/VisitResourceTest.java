@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 
 import java.util.Collections;
+import java.util.Date;
 
 import static java.util.Arrays.asList;
 import static org.mockito.BDDMockito.given;
@@ -23,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import static org.mockito.Mockito.verify;
 @ExtendWith(SpringExtension.class)
 @WebMvcTest(VisitResource.class)
 @ActiveProfiles("test")
@@ -47,6 +48,24 @@ class VisitResourceTest {
             .id(123)
             .petId(123)
             .build();
+    }
+    @Test
+    void testCreateVisit() throws Exception {
+        Visit newVisit = Visit.VisitBuilder.aVisit()
+            .description("Test visit")
+            .petId(1)
+            .date(new Date())
+            .build();
+
+        given(visitRepository.save(org.mockito.ArgumentMatchers.any(Visit.class)))
+            .willReturn(newVisit);
+
+        mvc.perform(post("/owners/1/pets/1/visits")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"2025-04-08\",\"description\":\"Test visit\"}"))
+            .andExpect(status().isCreated());
+
+        verify(visitRepository).save(org.mockito.ArgumentMatchers.any(Visit.class));
     }
     @Test
     void shouldFetchVisits() throws Exception {
