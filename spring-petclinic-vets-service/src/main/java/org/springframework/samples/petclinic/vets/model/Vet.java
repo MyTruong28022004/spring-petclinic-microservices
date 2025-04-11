@@ -73,7 +73,6 @@ public class Vet {
     }
 
     public void addSpecialty(Specialty specialty) {
-        //LaLa
         getSpecialtiesInternal().add(specialty);
     }
 
