@@ -1,94 +1,120 @@
 pipeline {
-  agent any
-  environment {
-    DOCKER_CREDENTIALS_ID = 'docker-hub-cred'
-    REPO_URL = 'https://github.com/MyTruong28022004/spring-petclinic-microservices-fork.git'
-  }
-  parameters {
-    string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Branch to build')
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        git branch: "${params.BRANCH_NAME}", url: "${REPO_URL}"
-      }
+    agent any
+
+    tools {
+        maven 'Maven 3.8.6'
     }
 
-    stage('Detect Changed Services') {
-      steps {
-        script {
-          def prevCommit = sh(script: 'git rev-parse HEAD^ || git rev-parse HEAD', returnStdout: true).trim()
-          def changedFiles = sh(script: "git diff --name-only ${prevCommit} HEAD", returnStdout: true).trim().split("\n")
-
-          def services = [
-            'spring-petclinic-customers-service',
-            'spring-petclinic-vets-service',
-            'spring-petclinic-visits-service',
-            'spring-petclinic-genai-service'
-          ]
-
-          def changedServices = services.findAll { service ->
-            changedFiles.any { it.startsWith("${service}/") }
-          }
-
-          echo "Changed services: ${changedServices}"
-          env.CHANGED_SERVICES = changedServices.join(',')
-        }
-      }
+    options {
+        skipDefaultCheckout()
     }
 
-    stage('Skip Build (No Services Changed)') {
-      when {
-        not {
-          expression { return env.CHANGED_SERVICES?.trim() }
-        }
-      }
-      steps {
-        echo "No changed services detected. Skipping build and push."
-      }
+    environment {
+        MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
     }
 
-    stage('Build & Push Changed Images') {
-      when {
-        expression { return env.CHANGED_SERVICES?.trim() }
-      }
-      steps {
-        script {
-          def commitId = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-          def changedServices = env.CHANGED_SERVICES.split(',').findAll { it?.trim() }
-
-          // Ánh xạ service -> image name
-          def imageMap = [
-            'spring-petclinic-customers-service': 'mytruong28022004/spring-petclinic-customers-service',
-            'spring-petclinic-vets-service'    : 'mytruong28022004/spring-petclinic-vets-service',
-            'spring-petclinic-visits-service'   : 'mytruong28022004/spring-petclinic-visits-service',
-            'spring-petclinic-genai-service'   : 'mytruong28022004/spring-petclinic-genai-service'
-          ]
-
-          changedServices.each { service ->
-            def imageName = imageMap[service]
-            echo "Building and pushing image for: ${service} as ${imageName}"
-
-            dir(service) {
-              // Build image using Maven wrapper and Docker profile
-              sh "../mvnw clean install -P buildDocker -DskipTests"
-
-              withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                sh 'echo $DOCKER_PASSWORD | docker login --username $DOCKER_USERNAME --password-stdin'
-                sh "docker tag ${imageName} ${imageName}:${commitId}"
-                sh "docker push ${imageName}:${commitId}"
-                sh "docker push ${imageName}:latest"
-              }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: env.CHANGE_BRANCH ? "origin/${CHANGE_BRANCH}" : "origin/${BRANCH_NAME}"]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/MyTruong28022004/spring-petclinic-microservices.git',
+                        credentialsId: 'MyTruong'
+                    ]]
+                ])
+                script {
+                    echo "Checked out branch: ${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
+                }
             }
-          }
         }
-      }
+        
+        stage('Determine Changed Services') {
+            steps {
+                script {
+                    def baseCommit = sh(script: '''
+                        git fetch origin main || true
+                        if git show-ref --verify --quiet refs/remotes/origin/main; then
+                            git merge-base origin/main HEAD
+                        else
+                            git rev-parse HEAD~1
+                        fi
+                    ''', returnStdout: true).trim()
+
+                    def changedServices = sh(script: "git diff --name-only ${baseCommit} HEAD | awk -F/ '{print \$1}' | sort -u", returnStdout: true).trim().split('\n')
+
+                    def allServices = [
+                        'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service',
+                        'spring-petclinic-customers-service',
+                        'spring-petclinic-genai-service'
+                    ]
+
+                    def changedServicesList = changedServices as List
+                    env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
+                    echo "Services to test and build: ${env.SERVICES_TO_BUILD}"
+                }
+            }
+        }
+
+       stage('Test') {
+            when {
+                expression { return env.SERVICES_TO_BUILD?.trim() }
+            }
+            steps {
+                script {
+                    def services = env.SERVICES_TO_BUILD.split(',')
+                    for (s in services) {
+                        dir("${s}") {
+                            echo "Testing service: ${s}"
+                            sh "mvn clean test jacoco:report"
+        
+                            junit '**/target/surefire-reports/*.xml'
+                            jacoco execPattern: '**/target/jacoco.exec', classPattern: '**/target/classes', sourcePattern: '**/src/main/java'
+        
+                            def missed = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*missed=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
+                            def covered = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*covered=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
+        
+                            def total = missed + covered
+                            def coverage = (covered * 100.0) / total
+                            echo "${s} instruction coverage: ${String.format('%.2f', coverage)}%"
+        
+                            if (coverage < 70.0) {
+                                error "${s} instruction coverage is below 70% (${String.format('%.2f', coverage)}%). Failing pipeline."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            when {
+                expression { return env.SERVICES_TO_BUILD?.trim() }
+            }
+            steps {
+                script {
+                    def services = env.SERVICES_TO_BUILD.split(',')
+                    for (s in services) {
+                        dir("${s}") {
+                            echo "Building service: ${s}"
+                            sh "mvn clean package"
+                        }
+                    }
+                }
+            }
+        }
     }
-  }
-  post {
-    always {
-      echo "Cleaning up Docker images..."
-      sh 'docker system prune -f || true'
+
+    post {
+        always {
+            echo "Pipeline complete"
+        }
+        failure {
+            echo "Pipeline failed"
+        }
     }
-  }
 }
