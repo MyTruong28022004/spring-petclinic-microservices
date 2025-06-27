@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.visits.model;
 
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
