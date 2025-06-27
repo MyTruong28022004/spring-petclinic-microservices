@@ -12,7 +12,7 @@ public class VisitModelTest {
     @Test
     public void testCreateVisitWithBuilder() {
         Date visitDate = new Date();
-
+// hello
         Visit visit = Visit.VisitBuilder.aVisit()
             .id(1)
             .description("Test visit description")
