@@ -31,7 +31,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Determine Changed Services') {
             steps {
                 script {
@@ -71,17 +71,17 @@ pipeline {
                         dir("${s}") {
                             echo "Testing service: ${s}"
                             sh "mvn clean test jacoco:report"
-
+        
                             junit '**/target/surefire-reports/*.xml'
                             jacoco execPattern: '**/target/jacoco.exec', classPattern: '**/target/classes', sourcePattern: '**/src/main/java'
-
+        
                             def missed = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*missed=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
                             def covered = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*covered=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
-
+        
                             def total = missed + covered
                             def coverage = (covered * 100.0) / total
                             echo "${s} instruction coverage: ${String.format('%.2f', coverage)}%"
-
+        
                             if (coverage < 70.0) {
                                 error "${s} instruction coverage is below 70% (${String.format('%.2f', coverage)}%). Failing pipeline."
                             }
@@ -90,7 +90,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Build') {
             when {
                 expression { return env.SERVICES_TO_BUILD?.trim() }
