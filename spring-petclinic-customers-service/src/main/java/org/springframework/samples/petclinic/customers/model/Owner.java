@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.customers.model;
 
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
