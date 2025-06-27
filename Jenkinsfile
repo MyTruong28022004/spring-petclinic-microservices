@@ -33,29 +33,35 @@ pipeline {
         }
 
         stage('Determine Changed Services') {
-            steps {
-                script {
-                    def currentBranch = env.CHANGE_BRANCH ?: env.BRANCH_NAME
-                    def baseCommit = sh(script: '''
-                        git fetch origin
-                        git rev-parse HEAD^
-                    ''', returnStdout: true).trim()
+    steps {
+        script {
+            def currentBranch = env.CHANGE_BRANCH ?: env.BRANCH_NAME
 
-                    def changedServices = sh(script: "git diff --name-only ${baseCommit} HEAD | awk -F/ '{print \$1}' | sort -u", returnStdout: true).trim().split('\n')
+            def baseCommit = sh(script: '''
+                git fetch origin main || true
+                if [ -n "${CHANGE_ID}" ]; then
+                    git merge-base origin/main HEAD
+                else
+                    git rev-parse HEAD^
+                fi
+            ''', returnStdout: true).trim()
 
-                    def allServices = [
-                        'spring-petclinic-vets-service',
-                        'spring-petclinic-visits-service',
-                        'spring-petclinic-customers-service',
-                        'spring-petclinic-genai-service'
-                    ]
+            def changedServices = sh(script: "git diff --name-only ${baseCommit} HEAD | awk -F/ '{print \$1}' | sort -u", returnStdout: true).trim().split('\n')
 
-                    def changedServicesList = changedServices as List
-                    env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
-                    echo "Services to test and build: ${env.SERVICES_TO_BUILD}"
-                }
-            }
+            def allServices = [
+                'spring-petclinic-vets-service',
+                'spring-petclinic-visits-service',
+                'spring-petclinic-customers-service',
+                'spring-petclinic-genai-service'
+            ]
+
+            def changedServicesList = changedServices as List
+            env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
+            echo "Services to test and build: ${env.SERVICES_TO_BUILD}"
         }
+    }
+}
+
 
         stage('Test') {
             when {
