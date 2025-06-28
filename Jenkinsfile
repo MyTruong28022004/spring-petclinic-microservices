@@ -1,4 +1,4 @@
-pipeline {
+pipeline { 
     agent any
 
     tools {
@@ -31,36 +31,39 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Determine Changed Services') {
-            steps {
-                script {
-                    def baseCommit = sh(script: '''
-                        git fetch origin main || true
-                        if git show-ref --verify --quiet refs/remotes/origin/main; then
-                            git merge-base origin/main HEAD
-                        else
-                            git rev-parse HEAD~1
-                        fi
-                    ''', returnStdout: true).trim()
+    steps {
+        script {
+            def currentBranch = env.CHANGE_BRANCH ?: env.BRANCH_NAME
 
-                    def changedServices = sh(script: "git diff --name-only ${baseCommit} HEAD | awk -F/ '{print \$1}' | sort -u", returnStdout: true).trim().split('\n')
+            def baseCommit = sh(script: '''
+                git fetch origin main || true
+                if [ -n "${CHANGE_ID}" ]; then
+                    git merge-base origin/main HEAD
+                else
+                    git rev-parse HEAD^
+                fi
+            ''', returnStdout: true).trim()
 
-                    def allServices = [
-                        'spring-petclinic-vets-service',
-                        'spring-petclinic-visits-service',
-                        'spring-petclinic-customers-service',
-                        'spring-petclinic-genai-service'
-                    ]
+            def changedServices = sh(script: "git diff --name-only ${baseCommit} HEAD | awk -F/ '{print \$1}' | sort -u", returnStdout: true).trim().split('\n')
 
-                    def changedServicesList = changedServices as List
-                    env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
-                    echo "Services to test and build: ${env.SERVICES_TO_BUILD}"
-                }
-            }
+            def allServices = [
+                'spring-petclinic-vets-service',
+                'spring-petclinic-visits-service',
+                'spring-petclinic-customers-service',
+                'spring-petclinic-genai-service'
+            ]
+
+            def changedServicesList = changedServices as List
+            env.SERVICES_TO_BUILD = allServices.findAll { it in changedServicesList }.join(',')
+            echo "Services to test and build: ${env.SERVICES_TO_BUILD}"
         }
+    }
+}
 
-       stage('Test') {
+
+        stage('Test') {
             when {
                 expression { return env.SERVICES_TO_BUILD?.trim() }
             }
@@ -71,17 +74,17 @@ pipeline {
                         dir("${s}") {
                             echo "Testing service: ${s}"
                             sh "mvn clean test jacoco:report"
-        
+
                             junit '**/target/surefire-reports/*.xml'
                             jacoco execPattern: '**/target/jacoco.exec', classPattern: '**/target/classes', sourcePattern: '**/src/main/java'
-        
+
                             def missed = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*missed=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
                             def covered = sh(script: "grep '<counter type=\"INSTRUCTION\"' target/site/jacoco/jacoco.xml | sed -n 's/.*covered=\"\\([0-9]*\\)\".*/\\1/p'", returnStdout: true).trim().toInteger()
-        
+
                             def total = missed + covered
                             def coverage = (covered * 100.0) / total
                             echo "${s} instruction coverage: ${String.format('%.2f', coverage)}%"
-        
+
                             if (coverage < 70.0) {
                                 error "${s} instruction coverage is below 70% (${String.format('%.2f', coverage)}%). Failing pipeline."
                             }
@@ -90,7 +93,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build') {
             when {
                 expression { return env.SERVICES_TO_BUILD?.trim() }

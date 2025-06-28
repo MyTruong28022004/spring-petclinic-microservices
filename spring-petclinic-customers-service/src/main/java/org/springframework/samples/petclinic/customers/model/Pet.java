@@ -116,7 +116,7 @@ public class Pet {
             && Objects.equals(type, pet.type)
             && Objects.equals(owner, pet.owner);
     }
-
+    
     @Override
     public int hashCode() {
         return Objects.hash(id, name, birthDate, type, owner);

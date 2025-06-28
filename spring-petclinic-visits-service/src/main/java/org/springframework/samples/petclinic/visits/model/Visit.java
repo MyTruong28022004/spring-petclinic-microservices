@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.visits.model;
 
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -35,7 +36,7 @@ public class Visit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-
+//    hihi
     @Column(name = "visit_date")
     @Temporal(TemporalType.TIMESTAMP)
     @JsonFormat(pattern = "yyyy-MM-dd")
@@ -114,7 +115,7 @@ public class Visit {
             this.petId = petId;
             return this;
         }
-
+        //LaLa
         public Visit build() {
             Visit visit = new Visit();
             visit.setId(id);
