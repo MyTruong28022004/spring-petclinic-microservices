@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.customers.model;
 
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +24,7 @@ import org.springframework.beans.support.PropertyComparator;
 import org.springframework.core.style.ToStringCreator;
 
 import java.util.*;
+
 
 /**
  * Simple JavaBean domain object representing an owner.
